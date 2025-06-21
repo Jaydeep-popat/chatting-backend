@@ -1,11 +1,11 @@
 import dotenv from "dotenv";
 import http from "http";
 import connectDB from "./db/index.js";
-import { app } from "./app.js";
 import { Server } from "socket.io";
 import { initSocket } from "./socket/index.js";
 
 dotenv.config();
+import { app } from "./app.js";
 
 connectDB()
   .then(() => {
@@ -14,20 +14,21 @@ connectDB()
     const io = new Server(server, {
       cors: {
         origin: process.env.CORS_ORIGIN,
-        credentials: true,
+        credentials: true
       }
     });
 
     initSocket(io);
 
+    // Attach the socket instance to the app
     app.set("io", io);
 
+    // Start the HTTP server
     server.listen(process.env.PORT, () => {
-      console.log("Server is running on port", process.env.PORT);
+      console.log(`🚀 Server is running on port ${process.env.PORT}`);
     });
 
-    
-
+    // Handle server shutdown gracefully
     process.on("SIGINT", () => {
       console.log("Shutting down server...");
       io.close(() => {
@@ -37,5 +38,5 @@ connectDB()
     });
   })
   .catch((err) => {
-    console.log("Mongo not connected", err);
+    console.log("❌ MongoDB connection failed:", err);
   });
