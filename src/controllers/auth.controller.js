@@ -114,8 +114,8 @@ const loginUser = asyncHandler(async (req, res) => {
 
   const options = {
     httpOnly: true,
-    secure: false,
-    sameSite: "strict", // Prevent CSRF attacks
+    secure: true,
+    sameSite: "none",
     maxAge: 30 * 60 * 1000, // 30 minutes for accessToken
   };
 

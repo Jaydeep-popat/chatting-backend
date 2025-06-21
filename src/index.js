@@ -13,16 +13,9 @@ connectDB()
 
     const io = new Server(server, {
       cors: {
-        origin: (origin, callback) => {
-          const allowedOrigins = ["http://localhost:3000"];
-          if (!origin || allowedOrigins.includes(origin)) {
-            callback(null, true);
-          } else {
-            callback(new Error("Not allowed by CORS"));
-          }
-        },
+        origin: process.env.CORS_ORIGIN,
         credentials: true,
-      },
+      }
     });
 
     initSocket(io);
@@ -32,6 +25,8 @@ connectDB()
     server.listen(process.env.PORT, () => {
       console.log("Server is running on port", process.env.PORT);
     });
+
+    
 
     process.on("SIGINT", () => {
       console.log("Shutting down server...");
