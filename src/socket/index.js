@@ -1,72 +1,77 @@
 import { apiError } from "../utils/apiError.js";
-import { User } from "../models/user.model.js"; // Import User model for validation
+import { User } from "../models/user.model.js";
 import jwt from "jsonwebtoken";
+import cookie from "cookie"; // Add cookie parser for Node.js
 
-const userSocketMap = new Map(); // Map to track user-to-socket connections
+const userSocketMap = new Map();
 
 export const initSocket = (io) => {
-  
   io.use(async (socket, next) => {
-    try {
-      const token = socket.handshake.query.token;
+  try {
+    // Extract token from cookies or query parameters (for testing)
+    const cookies = socket.handshake.headers.cookie
+      ? cookie.parse(socket.handshake.headers.cookie)
+      : {};
+    const token = cookies.token || socket.handshake.query.token; // Add query param fallback
 
-      if (!token) {
-        throw new apiError(401, "Unauthorized", "No token provided in handshake query.");
-      }
-
-      // Validate the token
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      socket.userId = decoded._id; // Attach the userId to the socket
-
-      // Check if the user exists in the database
-      const userExists = await User.exists({ _id: socket.userId });
-      if (!userExists) {
-        throw new apiError(404, "User not found", "Invalid user ID in token.");
-      }
-
-      next(); // Proceed to the next middleware
-    } catch (err) {
-      console.error("Socket authentication error:", err.message);
-      next(new Error(err.message || "Authentication error"));
+    if (!token) {
+      throw new apiError(401, "Unauthorized", "No token provided in cookies or query.");
     }
-  });
+
+    const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+    socket.userId = decoded._id;
+
+    const user = await User.findById(socket.userId).select("_id");
+    if (!user) {
+      throw new apiError(404, "User not found", "Invalid user ID in token.");
+    }
+
+    next();
+  } catch (err) {
+    console.error("Socket authentication error:", err.message);
+    next({ status: err.status || 401, message: err.message || "Authentication error" });
+  }
+});
 
   io.on("connection", async (socket) => {
-    console.log(`User connected: ${socket.id}`);
+    console.log(`User connected: ${socket.id}, User ID: ${socket.userId}`);
 
-    const userId = socket.userId; // Extract userId from the socket object
-    console.log("Authenticated userId:", userId);
-
+    // Manage userSocketMap
+    const userId = socket.userId;
     if (!userSocketMap.has(userId)) {
       userSocketMap.set(userId, new Set());
     }
     userSocketMap.get(userId).add(socket.id);
     console.log(`Active sockets for user ${userId}:`, [...userSocketMap.get(userId)]);
 
-    // Handle joining a room
-    socket.on("join-room", (roomId) => {
+    // Join room
+    socket.on("join-room", async (roomId) => {
       try {
         if (!roomId) {
-          throw new apiError(400, "Bad Request", "Room ID is required to join a room.");
+          throw new apiError(400, "Bad Request", "Room ID is required.");
         }
+        // Optional: Add room authorization logic here
+        // e.g., check if user has access to roomId in your database
         socket.join(roomId);
         console.log(`User ${socket.id} joined room: ${roomId}`);
+        socket.emit("room-joined", { roomId });
       } catch (err) {
         console.error("Error joining room:", err.message);
-        socket.emit("error", { message: err.message });
+        socket.emit("error", { status: err.status || 400, message: err.message });
       }
     });
 
-    // Handle sending a message to a room
+    // Send message
     socket.on("send-message", ({ roomId, message }) => {
       try {
         if (!roomId || !message) {
-          throw new apiError(400,"Room ID and message are required.");
+          throw new apiError(400, "Bad Request", "Room ID and message are required.");
         }
-        io.to(roomId).emit("receive-message", message);
+        // Optional: Validate message content or sanitize
+        io.to(roomId).emit("receive-message", { userId, message, timestamp: new Date() });
       } catch (err) {
-        console.error("Error handling send-message event:", err.message);
-        socket.emit("error", { message: err.message });
+        console.error("Error sending message:", err.message);
+        socket.emit("error", { status: err.status || 400, message: err.message });
       }
     });
 
@@ -79,9 +84,9 @@ export const initSocket = (io) => {
           userSocketMap.delete(userId);
         }
       }
+      console.log(`Remaining sockets for user ${userId}:`, userSocketMap.get(userId)?.size || 0);
     });
   });
 
-  // Expose the userSocketMap for use in controllers
   io.userSocketMap = userSocketMap;
 };

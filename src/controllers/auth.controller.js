@@ -193,8 +193,8 @@ const logoutUser = asyncHandler(async (req, res) => {
     })
     .clearCookie("refreshToken", {
       httpOnly: true,
-      sameSite: "strict",
-      secure: process.env.NODE_ENV === "production",
+      secure: true,
+      sameSite: "none"
     });
 
   return res

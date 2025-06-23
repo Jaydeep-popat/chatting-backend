@@ -6,7 +6,6 @@
   "type": "module",
   "scripts": {
     "start": "node ./src/index.js"
-
   },
   "keywords": [
     "jaydeep",
@@ -19,6 +18,7 @@
   "dependencies": {
     "bcrypt": "^5.1.1",
     "cloudinary": "^2.6.1",
+    "cookie": "^1.0.2",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
