@@ -8,6 +8,7 @@ import { RefreshToken } from "../models/refreshToken.js";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 
+
 const registerUser = asyncHandler(async (req, res) => {
 
   const { username, displayName, email, password, role } = req.body;
@@ -25,7 +26,7 @@ const registerUser = asyncHandler(async (req, res) => {
   }
 
   let profilePic = undefined;
-  
+
   const profilePicLocalPath = req.files?.profilePic?.[0]?.path;
   console.log("Profile picture path:", profilePicLocalPath);
 
@@ -86,7 +87,7 @@ const loginUser = asyncHandler(async (req, res) => {
 
   const { email, username, password } = req.body;
 
-  if (!username && !email) {  
+  if (!username && !email) {
     throw new apiError(400, "username or email is required.");
   }
   if (!password) {
@@ -188,8 +189,8 @@ const logoutUser = asyncHandler(async (req, res) => {
   res
     .clearCookie("accessToken", {
       httpOnly: true,
-      sameSite: "strict",
-      secure: process.env.NODE_ENV === "production",
+      secure: true,
+      sameSite: "none"
     })
     .clearCookie("refreshToken", {
       httpOnly: true,
@@ -212,8 +213,8 @@ const getAlluser = asyncHandler(async (req, res) => {
 
   const users = await User.find({}).select("-password -refreshToken");
   return res
-  .status(200)
-  .json(new apiResponse(200, users, "All users fetched successfully."));
+    .status(200)
+    .json(new apiResponse(200, users, "All users fetched successfully."));
 });
 
 const changeCurrentPassword = asyncHandler(async (req, res) => {
