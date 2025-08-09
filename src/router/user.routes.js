@@ -28,6 +28,7 @@ router.route("/updateAccountDetails").post(
     verifyJWT,
     updateAccountDetails
 );
+
 router.route("/refresh-token").post(refreshAccessToken)
 
 export default router

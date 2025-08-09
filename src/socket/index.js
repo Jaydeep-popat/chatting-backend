@@ -1,92 +1,118 @@
 import { apiError } from "../utils/apiError.js";
 import { User } from "../models/user.model.js";
 import jwt from "jsonwebtoken";
-import cookie from "cookie"; // Add cookie parser for Node.js
+import cookie from "cookie";
 
 const userSocketMap = new Map();
 
 export const initSocket = (io) => {
+  // Middleware for authentication
   io.use(async (socket, next) => {
-  try {
-    // Extract token from cookies or query parameters (for testing)
-    const cookies = socket.handshake.headers.cookie
-      ? cookie.parse(socket.handshake.headers.cookie)
-      : {};
-    const token = cookies.token || socket.handshake.query.token; // Add query param fallback
+    try {
+      const cookies = socket.handshake.headers.cookie
+        ? cookie.parse(socket.handshake.headers.cookie)
+        : {};
 
-    if (!token) {
-      throw new apiError(401, "Unauthorized", "No token provided in cookies or query.");
+      const token = cookies.accessToken || socket.handshake.query.accessToken;
+      if (!token) {
+        throw new apiError(401, "Unauthorized", "No token provided.");
+      }
+
+      const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+      socket.userId = decoded._id;
+
+      const user = await User.findById(socket.userId).select("_id");
+      if (!user) {
+        throw new apiError(404, "User not found.");
+      }
+
+      next();
+    } catch (err) {
+      console.error("Socket authentication error:", err.message);
+      next({ status: err.status || 401, message: err.message || "Auth error" });
     }
+  });
 
-    const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
-    socket.userId = decoded._id;
-
-    const user = await User.findById(socket.userId).select("_id");
-    if (!user) {
-      throw new apiError(404, "User not found", "Invalid user ID in token.");
-    }
-
-    next();
-  } catch (err) {
-    console.error("Socket authentication error:", err.message);
-    next({ status: err.status || 401, message: err.message || "Authentication error" });
-  }
-});
-
-  io.on("connection", async (socket) => {
-    console.log(`User connected: ${socket.id}, User ID: ${socket.userId}`);
-
-    // Manage userSocketMap
+  io.on("connection", (socket) => {
     const userId = socket.userId;
+
+    // Track multiple sockets per user
     if (!userSocketMap.has(userId)) {
       userSocketMap.set(userId, new Set());
     }
     userSocketMap.get(userId).add(socket.id);
-    console.log(`Active sockets for user ${userId}:`, [...userSocketMap.get(userId)]);
 
-    // Join room
-    socket.on("join-room", async (roomId) => {
+    // Track rooms user has joined (optional but safe)
+    socket.joinedRooms = new Set();
+
+    /**
+     * JOIN PRIVATE ROOM between two users
+     */
+    socket.on("join-chat", ({ targetUserId }) => {
       try {
-        if (!roomId) {
-          throw new apiError(400, "Bad Request", "Room ID is required.");
+        if (!targetUserId) {
+          throw new apiError(400, "Target user ID required.");
         }
-        // Optional: Add room authorization logic here
-        // e.g., check if user has access to roomId in your database
-        socket.join(roomId);
-        console.log(`User ${socket.id} joined room: ${roomId}`);
-        socket.emit("room-joined", { roomId });
+
+        const roomId = [userId, targetUserId].sort().join("-");
+
+        if (!socket.joinedRooms.has(roomId)) {
+          socket.join(roomId);
+          socket.joinedRooms.add(roomId);
+          console.log(`User ${userId} joined room ${roomId}`);
+        }
+
+        socket.emit("chat-joined", { roomId });
       } catch (err) {
-        console.error("Error joining room:", err.message);
+        console.error("Join room error:", err.message);
         socket.emit("error", { status: err.status || 400, message: err.message });
       }
     });
 
-    // Send message
-    socket.on("send-message", ({ roomId, message }) => {
+    /**
+     * SEND MESSAGE TO PRIVATE ROOM
+     */
+    socket.on("send-private-message", ({ targetUserId, message }) => {
       try {
-        if (!roomId || !message) {
-          throw new apiError(400, "Bad Request", "Room ID and message are required.");
+        if (!targetUserId || !message) {
+          throw new apiError(400, "Target user ID and message required.");
         }
-        // Optional: Validate message content or sanitize
-        io.to(roomId).emit("receive-message", { userId, message, timestamp: new Date() });
+
+        const roomId = [userId, targetUserId].sort().join("-");
+
+        // Extra: Auto join sender if not in room (fallback protection)
+        if (!socket.joinedRooms.has(roomId)) {
+          socket.join(roomId);
+          socket.joinedRooms.add(roomId);
+        }
+
+        const timestamp = new Date();
+
+        io.to(roomId).emit("receive-private-message", {
+          from: userId,
+          to: targetUserId,
+          message,
+          timestamp,
+        });
       } catch (err) {
-        console.error("Error sending message:", err.message);
+        console.error("Send msg error:", err.message);
         socket.emit("error", { status: err.status || 400, message: err.message });
       }
     });
 
-    // Handle disconnection
+    /**
+     * HANDLE DISCONNECT
+     */
     socket.on("disconnect", () => {
-      console.log(`User disconnected: ${socket.id}`);
-      if (userId && userSocketMap.has(userId)) {
+      if (userSocketMap.has(userId)) {
         userSocketMap.get(userId).delete(socket.id);
         if (userSocketMap.get(userId).size === 0) {
           userSocketMap.delete(userId);
         }
       }
-      console.log(`Remaining sockets for user ${userId}:`, userSocketMap.get(userId)?.size || 0);
+      console.log(`🔌 User ${userId} disconnected. Active sockets:`, userSocketMap.get(userId)?.size || 0);
     });
   });
 
-  io.userSocketMap = userSocketMap;
+  io.userSocketMap = userSocketMap; // expose for controller usage
 };

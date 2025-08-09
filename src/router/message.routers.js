@@ -18,6 +18,7 @@ router.route("/get-messages").get(
   getMessages
 );
 
+
 router.route("/delete-message/:messageId").delete(
   verifyJWT,
   deleteMessage
@@ -47,4 +48,5 @@ router.route("/getUnrededCount").get(
   verifyJWT,
   getUnrededCount
 )
+
 export default router

@@ -78,7 +78,6 @@ const sendMessage = asyncHandler(async (req, res) => {
   if (receiver) {
 
     const receiverSockets = userSocketMap.get(receiver.toString());
-    console.log(`Receiver sockets for ${receiver}:`, receiverSockets);
 
     if (receiverSockets) {
       receiverSockets.forEach((socketId) => {
@@ -88,7 +87,6 @@ const sendMessage = asyncHandler(async (req, res) => {
       console.warn(`User ${receiver} is not connected.`);
     }
   }
-
   if (room) {
     io.to(room.toString()).emit("receive-message", populatedMessage);
   }
@@ -313,6 +311,7 @@ const markAsRead = asyncHandler(async (req, res) => {
   // Add user to readBy array if not already present
   if (!message.readBy.map(id => id.toString()).includes(userId.toString())) {
     message.readBy.push(userId);
+    message.read=true;
     await message.save();
   }
 

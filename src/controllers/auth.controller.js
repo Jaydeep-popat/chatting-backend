@@ -8,7 +8,6 @@ import { RefreshToken } from "../models/refreshToken.js";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 
-
 const registerUser = asyncHandler(async (req, res) => {
 
   const { username, displayName, email, password, role } = req.body;
@@ -114,7 +113,7 @@ const loginUser = asyncHandler(async (req, res) => {
   const loggedInUser = await User.findById(user._id).select("-password");
 
   const options = {
-    httpOnly: true,
+    httpOnly: false,
     secure: true,
     sameSite: "none",
     maxAge: 30 * 60 * 1000, // 30 minutes for accessToken
@@ -161,6 +160,7 @@ const loginUser = asyncHandler(async (req, res) => {
 });
 
 const logoutUser = asyncHandler(async (req, res) => {
+  
   const refreshToken = req.cookies.refreshToken;
 
   if (!refreshToken) {
@@ -244,7 +244,7 @@ const getCurrentUser = asyncHandler(async (req, res) => {
   return res
     .status(200)
     .json(new apiResponse(200, user, "Current user fetched successfully."));
-});
+}); 
 
 const updateAccountDetails = asyncHandler(async (req, res) => {
 
@@ -397,8 +397,6 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     );
   }
 });
-
-
 
 export {
   registerUser,

@@ -3,10 +3,10 @@ import dotenv from 'dotenv';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 
+dotenv.config();
 const app = express();
 //  "start": "node ./src/index.js"
 
-dotenv.config();
 app.use(cors({
     origin: process.env.CORS_ORIGIN,
     credentials: true

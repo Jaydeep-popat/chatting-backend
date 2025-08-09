@@ -1,11 +1,11 @@
 import dotenv from "dotenv";
+dotenv.config();
 import http from "http";
 import connectDB from "./db/index.js";
 import { Server } from "socket.io";
 import { initSocket } from "./socket/index.js";
 import { app } from "./app.js";
 
-dotenv.config();
 connectDB()
   .then(() => {
     const server = http.createServer(app);
@@ -13,7 +13,8 @@ connectDB()
       cors: {
         origin: process.env.CORS_ORIGIN,
         credentials: true
-      }
+      },
+        transports: ["websocket"],
     });
 
     initSocket(io);
